@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <title>Three.js 黑洞渲染示例</title>
+  <style>
+    html,body { margin:0; height:100%; overflow:hidden; background: #000; }
+    #info {
+      position: absolute; left: 10px; top: 10px; color: #ddd; font-family: sans-serif;
+      background: rgba(0,0,0,0.35); padding:8px 12px; border-radius:6px;
+    }
+  </style>
+
+  <!-- import map 用来以模块方式加载 three 和 examples 模块 -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+      "three/examples/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="info">拖拽旋转 | 滚轮缩放 | 按 R 重置</div>
+
+  <script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/examples/controls/OrbitControls.js';
+  import { EffectComposer } from 'three/examples/postprocessing/EffectComposer.js';
+  import { RenderPass } from 'three/examples/postprocessing/RenderPass.js';
+  import { ShaderPass } from 'three/examples/postprocessing/ShaderPass.js';
+  import { CopyShader } from 'three/examples/shaders/CopyShader.js';
+
+  // ====== 参数，可调整 ======
+  const BH_PARAMS = {
+    radius: 0.9,        // 视界半径（相对于场景单位）
+    lensRadius: 2.5,    // 透镜作用半径
+    strength: 0.9,      // 扭曲强度（越大扭曲越强）
+    diskInner: 1.1,     // 吸积盘内半径（略大于视界）
+    diskOuter: 3.5,     // 吸积盘外半径
+    diskSpeed: 0.9      // 吸积盘旋转速度
+  };
+
+  // ===== 场景与渲染器 =====
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 2.2, 8);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+
+  // ===== 星空（点云） =====
+  function makeStarField(count = 4000, radius = 300) {
+    const g = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    for (let i=0;i<count;i++){
+      // 随机均匀分布在球壳里（稍微偏远）
+      const u = Math.random();
+      const v = Math.random();
+      const theta = 2 * Math.PI * u;
+      const phi = Math.acos(2*v - 1);
+
+      const r = radius * (0.7 + Math.random()*0.3);
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+
+      positions[3*i] = x;
+      positions[3*i+1] = y;
+      positions[3*i+2] = z;
+      sizes[i] = Math.random() * 1.5 + 0.5;
+    }
+    g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    g.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    const mat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 1.0,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.9
+    });
+    const p = new THREE.Points(g, mat);
+    return p;
+  }
+  scene.add(makeStarField());
+
+  // ===== 事件视界（黑球） =====
+  const bhGeometry = new THREE.SphereGeometry(BH_PARAMS.radius, 64, 64);
+  // 用一个纯黑、不写入深度的材质，使得后处理能看到它的轮廓（我们在后处理里绘制黑洞内部）
+  const bhMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  const blackHole = new THREE.Mesh(bhGeometry, bhMaterial);
+  blackHole.renderOrder = 2;
+  scene.add(blackHole);
+
+  // ===== 吸积盘（用两层环 + 自定义 shader 做发光） =====
+  // 采用环形缓冲几何 + ShaderMaterial 让环有放射噪声与色彩渐变
+  const ringGeom = new THREE.RingGeometry(BH_PARAMS.diskInner, BH_PARAMS.diskOuter, 512, 1);
+  // 将索引的坐标转换为 uv：所以我们需要一个顶点着色器给出极坐标
+  const accretionMat = new THREE.ShaderMaterial({
+    uniforms: {
+      time: { value: 0 },
+      inner: { value: BH_PARAMS.diskInner },
+      outer: { value: BH_PARAMS.diskOuter },
+      speed: { value: BH_PARAMS.diskSpeed }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying float vR;
+      void main(){
+        vUv = uv;
+        // uv.y 在 ring 上为径向坐标（0~1），我们用它来做颜色渐变
+        vR = uv.y;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec2 vUv;
+      varying float vR;
+      uniform float time;
+      uniform float inner;
+      uniform float outer;
+      uniform float speed;
+
+      // 简单伪随机函数
+      float hash(float n){ return fract(sin(n)*43758.5453); }
+      float noise(vec2 x){
+        vec2 p = floor(x);
+        vec2 f = fract(x);
+        f = f*f*(3.0-2.0*f);
+        float n = p.x + p.y*57.0;
+        float res = mix(mix(hash(n+0.0), hash(n+1.0),f.x),
+                        mix(hash(n+57.0), hash(n+58.0),f.x), f.y);
+        return res;
+      }
+
+      void main(){
+        // 产生放射状条纹与噪声，模拟发光吸积盘
+        float alpha = smoothstep(0.98, 0.0, abs(vUv.x-0.5)); // 让环不要太宽的圆周方向亮
+        float radial = vR;
+        float streak = pow(max(0.0, 1.0 - abs(sin((vUv.x + time*0.02*speed)*40.0) * (1.0 - radial))), 2.0);
+        float n = noise(vec2(vUv.y*10.0, time*0.2));
+        float glow = pow(1.0 - radial, 2.2) + 0.6 * streak + 0.25 * n;
+        vec3 col = mix(vec3(1.0,0.6,0.2), vec3(1.0,0.95,0.6), pow(glow, 1.2));
+        float a = clamp(glow * alpha, 0.0, 1.0);
+        gl_FragColor = vec4(col * a, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  const ringMesh = new THREE.Mesh(ringGeom, accretionMat);
+  ringMesh.rotation.x = -Math.PI/2;
+  ringMesh.renderOrder = 1;
+  scene.add(ringMesh);
+
+  // ===== 发光晕（用Sprite或圆环） =====
+  const glowGeom = new THREE.RingGeometry(BH_PARAMS.radius*1.05, BH_PARAMS.radius*1.7, 64);
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffaa66, transparent:true, opacity:0.22, blending: THREE.AdditiveBlending, depthWrite:false });
+  const glow = new THREE.Mesh(glowGeom, glowMat);
+  glow.rotation.x = -Math.PI/2;
+  scene.add(glow);
+
+  // ===== 后处理：引力透镜 ShaderPass =====
+  // 我们需要先把场景渲染到屏幕渲染目标，然后用这个 shader 读取 tDiffuse 并在黑洞附近扭曲 UV。
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+
+  const LENS_SHADER = {
+    uniforms: {
+      tDiffuse: { value: null },
+      resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+      center: { value: new THREE.Vector2(0.5, 0.5) },
+      bhRadius: { value: BH_PARAMS.radius / 10.0 }, // 以像素空间映射的近似比例（后面会基于屏幕尺寸校正）
+      lensRadius: { value: BH_PARAMS.lensRadius / 10.0 },
+      strength: { value: BH_PARAMS.strength },
+      time: { value: 0 }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main(){
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec2 vUv;
+      uniform sampler2D tDiffuse;
+      uniform vec2 resolution;
+      uniform vec2 center;
+      uniform float bhRadius;
+      uniform float lensRadius;
+      uniform float strength;
+      uniform float time;
+
+      void main(){
+        // 以 uv 空间计算
+        vec2 uv = vUv;
+        vec2 dir = uv - center;
+        float dist = length(dir);
+
+        // 计算作用域：在 lensRadius 以内发生扭曲
+        float r = lensRadius;
+        float inside = smoothstep(r, r*0.98, dist); // 越靠近中心 inside 越小
+        // 计算扭曲强度（以 1/(dist+eps) 增强靠近中心的弯曲）并平滑到 0
+        float effect = strength * (1.0 / (dist + 0.02) - 1.0/(r+0.02));
+        effect = max(effect, 0.0);
+        // 软剪切：只在 dist < r 生效
+        effect *= (1.0 - smoothstep(0.0, r, dist));
+
+        // 计算新 uv：沿着径向方向拉伸（注意要乘以一个小系数）
+        vec2 newUV = uv + dir * effect * 0.08;
+
+        // 如果在事件视界内，直接设为黑色（或深色）
+        float horizon = bhRadius * 0.75; // 内圈
+        if(dist < horizon){
+          gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+          return;
+        }
+
+        // 采样并增强边缘亮度（模拟光偏折集中）
+        vec4 color = texture2D(tDiffuse, clamp(newUV, 0.0, 1.0));
+        // 环形增强：在视界外侧产生亮边
+        float edge = smoothstep(horizon, horizon + 0.02, dist);
+        color.rgb += 0.8 * (1.0 - edge) * vec3(1.0, 0.6, 0.25) * (1.0 - dist/r);
+
+        gl_FragColor = color;
+      }
+    `
+  };
+
+  const lensPass = new ShaderPass(LENS_SHADER);
+  // 将黑洞屏幕中心映射到 shader center（我们可以通过投影黑洞中心到屏幕来更新）
+  composer.addPass(lensPass);
+
+  // (可选) copy pass
+  const copyPass = new ShaderPass(CopyShader);
+  copyPass.renderToScreen = true;
+  composer.addPass(copyPass);
+
+  // ===== 屏幕坐标映射：把黑洞世界位置投影到屏幕并传给 shader center =====
+  const proj = new THREE.Vector3();
+  function updateShaderCenter() {
+    const pos = blackHole.position.clone();
+    pos.project(camera);
+    // 从 NDC (-1,1) 转到 UV (0,1)
+    const uvx = 0.5 + pos.x * 0.5;
+    const uvy = 0.5 - pos.y * 0.5;
+    lensPass.uniforms.center.value.set(uvx, uvy);
+
+    // 校正半径：估算黑洞屏幕半径（由相机到球体的距离和投影得到）
+    // 取事件视界表面上的一个点（x = radius, y=0, z=0）做投影差分
+    const sample = new THREE.Vector3(BH_PARAMS.radius, 0, 0).add(blackHole.position).project(camera);
+    const sampleUVx = 0.5 + sample.x*0.5;
+    const sampleUVy = 0.5 - sample.y*0.5;
+    const screenRadius = Math.max(0.0001, Math.abs(sampleUVx - uvx));
+    // 存入 uniform（我们在 shader 里用它来决定“horizon”大小）
+    lensPass.uniforms.bhRadius.value = screenRadius;
+    // lensRadius 基于 diskOuter 投影
+    const sampleR = new THREE.Vector3(BH_PARAMS.diskOuter, 0, 0).add(blackHole.position).project(camera);
+    const screenR = Math.max(0.001, Math.abs(sampleR.x*0.5 + 0.5 - uvx));
+    lensPass.uniforms.lensRadius.value = Math.max(screenR * 1.4, screenRadius*1.5);
+  }
+
+  // ===== 动画循环 =====
+  const clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+
+    // 更新吸积盘转动：通过修改环材质的 time uniform，它会在 fragment shader 里表现为条纹移动
+    accretionMat.uniforms.time.value = t;
+
+    // 轻微让环在物理上旋转（给点三维效果）
+    ringMesh.rotation.z = -0.5 * t * (BH_PARAMS.diskSpeed * 0.2);
+
+    // 更新透镜中心与半径
+    updateShaderCenter();
+
+    controls.update();
+    composer.render();
+  }
+  animate();
+
+  // ===== 窗口变化处理 =====
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+    composer.setSize(w,h);
+    lensPass.uniforms.resolution.value.set(w,h);
+  });
+
+  // 重置相机快捷键
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'r' || e.key === 'R'){
+      camera.position.set(0,2.2,8);
+      controls.target.set(0,0,0);
+      controls.update();
+    }
+  });
+
+  </script>
+</body>
+</html>
