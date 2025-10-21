@@ -151,8 +151,9 @@ void accretionDiskColor(vec3 pos, inout vec3 color, inout float alpha) {
 vec3 traceColor(vec3 pos, vec3 dir) {
   float alpha = 1.0;
 
+  dir *= STEP_SIZE;
   vec3 color = vec3(0.0);
-  vec3 h = cross(pos, dir * STEP_SIZE);
+  vec3 h = cross(pos, dir);
   float h2 = dot(h, h);
   for (int i = 0; i < N_STEP; i++) {
     // 引力透镜
@@ -171,7 +172,7 @@ vec3 traceColor(vec3 pos, vec3 dir) {
     if (accretionDisk > 0.5) {
       accretionDiskColor(pos, color, alpha);
     }
-    pos += dir * STEP_SIZE;
+    pos += dir;
   }
   dir = rotateVector(dir, vec3(0.0, 1.0, 0.0), time);
   color += texture(galaxy, dir).rgb * alpha;
