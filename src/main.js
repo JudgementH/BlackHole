@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import Stats from 'three/examples/jsm/libs/stats.module';
-import { loadShaderPair } from './utils/shaderLoader.js';
+import { loadShader, loadShaderPair } from './utils/shaderLoader.js';
 
 const RADIUS = 1;
 
@@ -27,7 +27,7 @@ function createTarget(w, h) {
     });
 }
 
-let rtBlackhole = createTarget(innerWidth, innerHeight);
+let renderedBlackhole = createTarget(innerWidth, innerHeight);
 
 // 加载 shader 文件
 const { vertex, fragment } = await loadShaderPair(
@@ -107,6 +107,27 @@ scene.add(blackhole);
 camera.position.z = 3;
 
 
+// Tonemapping pass
+// load tone mapping shader
+const tonemappingShader = await loadShader('src/shaders/tonemapping.frag');
+const tonemapMat = new THREE.RawShaderMaterial({
+	vertexShader: `precision highp float;\nlayout(location=0) in vec3 position; out vec2 vUv; void main(){ vUv=(position.xy+1.0)*0.5; gl_Position=vec4(position,1.0); }`,
+	fragmentShader: tonemappingShader,
+	glslVersion: THREE.GLSL3,
+	uniforms: {
+	  gamma: { value: 2.5 },
+	  tonemappingEnabled: { value: 1 },
+	  texture0: { value: renderedBlackhole.texture },
+	  resolution: { value: new THREE.Vector2(params.width, params.height) },
+	},
+	depthTest: false,
+	depthWrite: false,
+  });
+const meshTonemap = new THREE.Mesh(quad, tonemapMat);
+const sceneTonemap = new THREE.Scene();
+sceneTonemap.add(meshTonemap);
+
+
 // GUI 控制
 const gui = new GUI();
 const g1 = gui.addFolder('Camera');
@@ -154,8 +175,14 @@ function animate() {
     requestAnimationFrame(animate);
 
 
-    // renderer.setRenderTarget(rtBlackhole);
+    renderer.setRenderTarget(renderedBlackhole);
     renderer.render(scene, camera);
+
+	// 6) tonemap to screen
+	tonemapMat.uniforms.texture0.value = renderedBlackhole.texture;
+	renderer.setRenderTarget(null);
+	renderer.render(sceneTonemap, camera);
+
     stats.update();
 }
 
