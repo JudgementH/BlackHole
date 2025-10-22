@@ -180,9 +180,9 @@ vec3 traceColor(vec3 pos, vec3 dir) {
 
 void main() {
 
-  // vec3 cam_pos = vec3(-cos(time * 0.1) * 15.0, sin(time * 0.1) * 1.0,
-  //                     sin(time * 0.1) * 15.0);
-  vec3 cam_pos = vec3(10.0, 1.0, 10.0);
+  vec3 cam_pos = vec3(-cos(time * 0.1) * 15.0, sin(time * 0.1) * 5.0,
+                      sin(time * 0.1) * 15.0);
+  // vec3 cam_pos = vec3(10.0, 1.0, 10.0);
 
   mat3 view = lookAt(cam_pos, vec3(0.0), 0.0);
 

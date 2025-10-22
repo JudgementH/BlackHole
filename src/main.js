@@ -220,6 +220,7 @@ sceneComposite.add(meshComposite);
 
 // ==================== 色调映射后处理 ====================
 let renderedTonemap = createTarget(innerWidth, innerHeight);
+let finalOutput = createTarget(innerWidth, innerHeight); // 最终输出渲染目标
 
 // 加载色调映射 shader
 const tonemappingShader = await loadShader('src/shaders/tonemapping.frag');
@@ -286,6 +287,47 @@ g4.add(params, 'bloomStrength', 0.0, 2.0, 0.01).name('bloomStrength').onChange((
     compositeMat.uniforms.bloomStrength.value = v;
 });
 
+// ==================== 保存PNG功能 ====================
+/**
+ * 保存当前画面为PNG文件
+ */
+function saveAsPNG() {
+    // 创建一个临时的canvas来读取渲染结果
+    const canvas = document.createElement('canvas');
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+    const ctx = canvas.getContext('2d');
+    
+    // 从WebGL渲染器读取像素数据
+    const imageData = ctx.createImageData(innerWidth, innerHeight);
+    const pixels = new Uint8Array(innerWidth * innerHeight * 4);
+    
+    // 读取最终输出渲染目标的像素数据（包含完整的后处理效果）
+    renderer.readRenderTargetPixels(finalOutput, 0, 0, innerWidth, innerHeight, pixels);
+    
+    // 将像素数据复制到ImageData
+    imageData.data.set(pixels);
+    
+    // 将ImageData绘制到canvas
+    ctx.putImageData(imageData, 0, 0);
+    
+    // 转换为PNG并下载
+    canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `blackhole_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, 'image/png');
+}
+
+// 添加保存按钮到GUI
+const g5 = gui.addFolder('导出');
+g5.add({ savePNG: saveAsPNG }, 'savePNG').name('保存为PNG');
+
 window.addEventListener('resize', () => {
     renderer.setSize(innerWidth, innerHeight);
     camera.aspect = innerWidth / innerHeight;
@@ -307,6 +349,8 @@ window.addEventListener('resize', () => {
 
     renderedTonemap.dispose();
     renderedTonemap = createTarget(innerWidth, innerHeight);
+    finalOutput.dispose();
+    finalOutput = createTarget(innerWidth, innerHeight);
     tonemapMat.uniforms.resolution.value.set(innerWidth, innerHeight);
     tonemapMat.uniforms.texture0.value = renderedBlackhole.texture;
 });
@@ -359,8 +403,12 @@ function animate() {
     renderer.setRenderTarget(renderedTonemap);
     renderer.render(sceneComposite, camera);
 
-    // 6) 色调映射并输出到屏幕
+    // 6) 色调映射到最终输出
     tonemapMat.uniforms.texture0.value = renderedTonemap.texture;
+    renderer.setRenderTarget(finalOutput);
+    renderer.render(sceneTonemap, camera);
+    
+    // 7) 输出到屏幕
     renderer.setRenderTarget(null);
     renderer.render(sceneTonemap, camera);
 
