@@ -1,4 +1,3 @@
-// 黑洞 fragment shader
 #ifndef STEP_SIZE
 #define STEP_SIZE 0.1
 #endif
