@@ -2,6 +2,8 @@
 
 A black hole physics renderer based on Three.js and WebGL, implementing gravitational lensing, accretion disk, and other physical effects.
 
+**Live Demo**: [https://judgementh.github.io/BlackHole/](https://judgementh.github.io/BlackHole/)
+
 ## Demo
 
 ![Black Hole Rendering Demo](assets/demo.png)
