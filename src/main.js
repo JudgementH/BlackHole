@@ -1,6 +1,6 @@
 /**
- * 黑洞渲染器主程序
- * 使用 Three.js 和自定义 shader 实现黑洞的物理渲染效果
+ * Black Hole Renderer - Main Program
+ * Physically-based black hole rendering using Three.js and custom shaders
  */
 
 import * as THREE from 'three';
@@ -9,23 +9,23 @@ import Stats from 'three/examples/jsm/libs/stats.module';
 import { loadShader, loadShaderPair } from './utils/shaderLoader.js';
 
 
-// 初始化 Three.js 基础组件
+// Initialize Three.js core components
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// 全屏四边形几何体
+// Full-screen quad geometry
 const quad = new THREE.PlaneGeometry(2, 2);
 
-// 加载 shader 并创建黑洞
+// Load shaders and create black hole
 
 /**
- * 创建渲染目标
- * @param {number} w - 宽度
- * @param {number} h - 高度
- * @returns {THREE.WebGLRenderTarget} 渲染目标
+ * Create render target
+ * @param {number} w - Width
+ * @param {number} h - Height
+ * @returns {THREE.WebGLRenderTarget} Render target
  */
 function createTarget(w, h) {
     return new THREE.WebGLRenderTarget(w, h, {
@@ -38,16 +38,16 @@ function createTarget(w, h) {
     });
 }
 
-// 黑洞渲染目标
+// Black hole render target
 let renderedBlackhole = createTarget(innerWidth, innerHeight);
 
-// 加载 shader 文件
+// Load shader files
 const { vertex, fragment } = await loadShaderPair(
     'src/shaders/blackhole.vert',
     'src/shaders/blackhole.frag'
 );
 
-// 加载纹理贴图
+// Load textures
 const loader = new THREE.TextureLoader();
 const cubeLoader = new THREE.CubeTextureLoader();
 const colorMapTex = loader.load('./assets/color_map.png');
@@ -63,7 +63,7 @@ const galaxyCubemap = cubeLoader.load([
 galaxyCubemap.colorSpace = THREE.SRGBColorSpace;
 colorMapTex.colorSpace = THREE.SRGBColorSpace;
 
-// 渲染参数配置
+// Render parameters
 const params = {
     STEP_SIZE: 0.1,
     N_STEP: 300,
@@ -84,7 +84,7 @@ const params = {
     bloomStrength: 0.1,
 };
 
-// 创建黑洞材质
+// Create black hole material
 const blackHoleMaterial = new THREE.ShaderMaterial({
     uniforms: {
         resolution: { value: new THREE.Vector2(innerWidth, innerHeight) },
@@ -114,22 +114,22 @@ const blackHoleMaterial = new THREE.ShaderMaterial({
     },
 });
 
-// 创建黑洞网格对象
+// Create black hole mesh
 const blackhole = new THREE.Mesh(quad, blackHoleMaterial);
 scene.add(blackhole);
 
 camera.position.z = 3;
 
-// ==================== Bloom 后处理效果 ====================
-// Bloom 多级渲染目标
+// ==================== Bloom Post-processing ====================
+// Bloom multi-level render targets
 let bloomIterations = params.MAX_BLOOM_ITER;
 let renderedDown = new Array(params.MAX_BLOOM_ITER).fill(null);
 let renderedUp = new Array(params.MAX_BLOOM_ITER).fill(null);
 
 /**
- * 确保 Bloom 渲染目标已创建
- * @param {number} w - 宽度
- * @param {number} h - 高度
+ * Ensure Bloom render targets are created
+ * @param {number} w - Width
+ * @param {number} h - Height
  */
 function ensureBloomTargets(w, h) {
     for (let i = 0; i < params.MAX_BLOOM_ITER; i++) {
@@ -162,7 +162,7 @@ const meshBright = new THREE.Mesh(quad, brightMat);
 const sceneBright = new THREE.Scene();
 sceneBright.add(meshBright);
 
-// Bloom: 下采样
+// Bloom: Downsampling
 const bloomDownShader = await loadShader('src/shaders/bloom_down.frag');
 const downMat = new THREE.RawShaderMaterial({
     vertexShader: `precision highp float;\nlayout(location=0) in vec3 position; out vec2 vUv; void main(){ vUv=(position.xy+1.0)*0.5; gl_Position=vec4(position,1.0); }`,
@@ -179,7 +179,7 @@ const meshDown = new THREE.Mesh(quad, downMat);
 const sceneDown = new THREE.Scene();
 sceneDown.add(meshDown);
 
-// Bloom: 上采样
+// Bloom: Upsampling
 const bloomUpShader = await loadShader('src/shaders/bloom_up.frag');
 const upMat = new THREE.RawShaderMaterial({
     vertexShader: `precision highp float;\nlayout(location=0) in vec3 position; out vec2 vUv; void main(){ vUv=(position.xy+1.0)*0.5; gl_Position=vec4(position,1.0); }`,
@@ -197,7 +197,7 @@ const meshUp = new THREE.Mesh(quad, upMat);
 const sceneUp = new THREE.Scene();
 sceneUp.add(meshUp);
 
-// Bloom: 合成 (基础图像 + 泛光效果)
+// Bloom: Composite (base image + bloom)
 const bloomCompositeShader = await loadShader('src/shaders/bloom_composite.frag');
 const compositeMat = new THREE.RawShaderMaterial({
     vertexShader: `precision highp float;\nlayout(location=0) in vec3 position; out vec2 vUv; void main(){ vUv=(position.xy+1.0)*0.5; gl_Position=vec4(position,1.0); }`,
@@ -218,11 +218,11 @@ const sceneComposite = new THREE.Scene();
 sceneComposite.add(meshComposite);
 
 
-// ==================== 色调映射后处理 ====================
+// ==================== Tone Mapping Post-processing ====================
 let renderedTonemap = createTarget(innerWidth, innerHeight);
-let finalOutput = createTarget(innerWidth, innerHeight); // 最终输出渲染目标
+let finalOutput = createTarget(innerWidth, innerHeight); // Final output render target
 
-// 加载色调映射 shader
+// Load tone mapping shader
 const tonemappingShader = await loadShader('src/shaders/tonemapping.frag');
 const tonemapMat = new THREE.RawShaderMaterial({
     vertexShader: `precision highp float;\nlayout(location=0) in vec3 position; out vec2 vUv; void main(){ vUv=(position.xy+1.0)*0.5; gl_Position=vec4(position,1.0); }`,
@@ -242,14 +242,14 @@ const sceneTonemap = new THREE.Scene();
 sceneTonemap.add(meshTonemap);
 
 
-// ==================== GUI 控制面板 ====================
+// ==================== GUI Control Panel ====================
 const gui = new GUI();
-const g1 = gui.addFolder('摄像机');
+const g1 = gui.addFolder('Camera');
 g1.add(params, 'fovScale', 0.1, 5.0, 0.01).name('fovScale').onChange((v) => {
     blackHoleMaterial.uniforms.fovScale.value = v;
 });
 
-const g2 = gui.addFolder('黑洞');
+const g2 = gui.addFolder('Black Hole');
 g2.add(params, 'STEP_SIZE', 0.01, 1.0, 0.005).name('STEP_SIZE').onChange((v) => {
     blackHoleMaterial.defines.STEP_SIZE = v;
     blackHoleMaterial.needsUpdate = true;
@@ -262,7 +262,7 @@ g2.add(params, 'gravatationalLensing', 0.0, 1.0, 0.01).name('gravatationalLensin
     blackHoleMaterial.uniforms.gravatationalLensing.value = v;
 });
 
-const g3 = gui.addFolder('吸积盘');
+const g3 = gui.addFolder('Accretion Disk');
 g3.add(blackHoleMaterial.uniforms.accretionDisk, 'value').name('accretionDisk').min(0).max(1).step(1);
 g3.add(blackHoleMaterial.uniforms.accretionDiskParticle, 'value').name('accretionDiskParticle').min(0).max(1).step(1);
 g3.add(blackHoleMaterial.uniforms.accretionDiskHeight, 'value', 0.0, 1.0, 0.01).name('accretionDiskHeight');
@@ -273,10 +273,10 @@ g3.add(blackHoleMaterial.uniforms.accretionDiskNoiseScale, 'value', 0.0, 10.0, 0
 g3.add(blackHoleMaterial.uniforms.accretionDiskNoiseLOD, 'value', 1.0, 12.0, 1.0).name('accretionDiskNoiseLOD');
 g3.add(blackHoleMaterial.uniforms.accretionDiskSpeed, 'value', 0.0, 1.0, 0.01).name('accretionDiskSpeed');
 
-const g4 = gui.addFolder('泛光效果');
+const g4 = gui.addFolder('Bloom Effect');
 g4.add(params, 'MAX_BLOOM_ITER', 1, 12, 1).name('MAX_BLOOM_ITER').onChange((v) => {
     bloomIterations = Math.floor(v);
-    // 重新创建 Bloom 渲染目标
+    // Recreate Bloom render targets
     renderedDown.forEach(target => target?.dispose());
     renderedUp.forEach(target => target?.dispose());
     renderedDown = new Array(params.MAX_BLOOM_ITER).fill(null);
@@ -287,31 +287,31 @@ g4.add(params, 'bloomStrength', 0.0, 2.0, 0.01).name('bloomStrength').onChange((
     compositeMat.uniforms.bloomStrength.value = v;
 });
 
-// ==================== 保存PNG功能 ====================
+// ==================== Save PNG Feature ====================
 /**
- * 保存当前画面为PNG文件
+ * Save current frame as PNG file
  */
 function saveAsPNG() {
-    // 创建一个临时的canvas来读取渲染结果
+    // Create temporary canvas to read render result
     const canvas = document.createElement('canvas');
     canvas.width = innerWidth;
     canvas.height = innerHeight;
     const ctx = canvas.getContext('2d');
     
-    // 从WebGL渲染器读取像素数据
+    // Read pixel data from WebGL renderer
     const imageData = ctx.createImageData(innerWidth, innerHeight);
     const pixels = new Uint8Array(innerWidth * innerHeight * 4);
     
-    // 读取最终输出渲染目标的像素数据（包含完整的后处理效果）
+    // Read pixel data from final output render target (includes full post-processing)
     renderer.readRenderTargetPixels(finalOutput, 0, 0, innerWidth, innerHeight, pixels);
     
-    // 将像素数据复制到ImageData
+    // Copy pixel data to ImageData
     imageData.data.set(pixels);
     
-    // 将ImageData绘制到canvas
+    // Draw ImageData to canvas
     ctx.putImageData(imageData, 0, 0);
     
-    // 转换为PNG并下载
+    // Convert to PNG and download
     canvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -324,9 +324,9 @@ function saveAsPNG() {
     }, 'image/png');
 }
 
-// 添加保存按钮到GUI
-const g5 = gui.addFolder('导出');
-g5.add({ savePNG: saveAsPNG }, 'savePNG').name('保存为PNG');
+// Add save button to GUI
+const g5 = gui.addFolder('Export');
+g5.add({ savePNG: saveAsPNG }, 'savePNG').name('Save as PNG');
 
 window.addEventListener('resize', () => {
     renderer.setSize(innerWidth, innerHeight);
@@ -336,7 +336,7 @@ window.addEventListener('resize', () => {
     renderedBlackhole = createTarget(innerWidth, innerHeight);
     blackHoleMaterial.uniforms.resolution.value.set(innerWidth, innerHeight);
 
-    // 重新创建 Bloom 渲染目标
+    // Recreate Bloom render targets
     renderedDown.forEach(target => target?.dispose());
     renderedUp.forEach(target => target?.dispose());
     renderedDown = new Array(params.MAX_BLOOM_ITER).fill(null);
@@ -359,23 +359,23 @@ const stats = new Stats();
 document.body.appendChild(stats.dom);
 
 /**
- * 主渲染循环
+ * Main render loop
  */
 function animate() {
-    // 更新时间 uniform
+    // Update time uniform
     blackHoleMaterial.uniforms.time.value = performance.now() * 0.001;
     requestAnimationFrame(animate);
 
-    // 1) 渲染黑洞到渲染目标
+    // 1) Render black hole to render target
     renderer.setRenderTarget(renderedBlackhole);
     renderer.render(scene, camera);
 
-    // 2) 亮度阈值提取
+    // 2) Brightness threshold extraction
     brightMat.uniforms.texture0.value = renderedBlackhole.texture;
     renderer.setRenderTarget(renderedBrightness);
     renderer.render(sceneBright, camera);
 
-    // 3) Bloom 下采样链
+    // 3) Bloom downsampling chain
     for (let level = 0; level < bloomIterations; level++) {
         const inputTex = (level === 0) ? renderedBrightness.texture : renderedDown[level - 1].texture;
         const tgt = renderedDown[level];
@@ -385,7 +385,7 @@ function animate() {
         renderer.render(sceneDown, camera);
     }
 
-    // 4) Bloom 上采样链
+    // 4) Bloom upsampling chain
     for (let level = bloomIterations - 1; level >= 0; level--) {
         const input0 = (level === bloomIterations - 1) ? renderedDown[level].texture : renderedUp[level + 1].texture;
         const input1 = (level === 0) ? renderedBrightness.texture : renderedDown[level - 1].texture;
@@ -397,22 +397,22 @@ function animate() {
         renderer.render(sceneUp, camera);
     }
 
-    // 5) 合成基础图像和泛光效果
+    // 5) Composite base image and bloom
     compositeMat.uniforms.texture0.value = renderedBlackhole.texture;
     compositeMat.uniforms.texture1.value = renderedUp[0].texture;
     renderer.setRenderTarget(renderedTonemap);
     renderer.render(sceneComposite, camera);
 
-    // 6) 色调映射到最终输出
+    // 6) Tone mapping to final output
     tonemapMat.uniforms.texture0.value = renderedTonemap.texture;
     renderer.setRenderTarget(finalOutput);
     renderer.render(sceneTonemap, camera);
     
-    // 7) 输出到屏幕
+    // 7) Output to screen
     renderer.setRenderTarget(null);
     renderer.render(sceneTonemap, camera);
 
-    // 更新性能统计
+    // Update performance stats
     stats.update();
 }
 

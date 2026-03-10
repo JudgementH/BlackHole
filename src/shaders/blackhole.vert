@@ -1,4 +1,4 @@
-// 黑洞 vertex shader
+// Black hole vertex shader
 out vec2 vUv;
 out vec3 vPosition;
 out vec3 vNormal;

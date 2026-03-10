@@ -1,20 +1,20 @@
 /**
- * Shader 加载工具
- * 用于异步加载和管理 shader 文件
+ * Shader Loader Utility
+ * For async loading and managing shader files
  */
 
 export class ShaderLoader {
     constructor() {
-        this.cache = new Map(); // 缓存已加载的 shader
+        this.cache = new Map(); // Cache for loaded shaders
     }
 
     /**
-     * 加载单个 shader 文件
-     * @param {string} url - shader 文件路径
-     * @returns {Promise<string>} shader 源码
+     * Load a single shader file
+     * @param {string} url - Shader file path
+     * @returns {Promise<string>} Shader source code
      */
     async loadShader(url) {
-        // 检查缓存
+        // Check cache
         if (this.cache.has(url)) {
             return this.cache.get(url);
         }
@@ -22,26 +22,26 @@ export class ShaderLoader {
         try {
             const response = await fetch(url);
             if (!response.ok) {
-                throw new Error(`无法加载 shader 文件: ${url}, 状态码: ${response.status}`);
+                throw new Error(`Failed to load shader file: ${url}, status: ${response.status}`);
             }
             
             const shaderCode = await response.text();
             
-            // 缓存结果
+            // Cache result
             this.cache.set(url, shaderCode);
             
-            console.log(`✅ 成功加载 shader: ${url}`);
+            console.log(`✅ Shader loaded successfully: ${url}`);
             return shaderCode;
         } catch (error) {
-            console.error(`❌ 加载 shader 失败: ${url}`, error);
+            console.error(`❌ Failed to load shader: ${url}`, error);
             throw error;
         }
     }
 
     /**
-     * 批量加载多个 shader 文件
-     * @param {Object} shaders - shader 配置对象，键为名称，值为文件路径
-     * @returns {Promise<Object>} 包含所有 shader 源码的对象
+     * Load multiple shader files in batch
+     * @param {Object} shaders - Shader config object, keys are names, values are file paths
+     * @returns {Promise<Object>} Object containing all shader source code
      */
     async loadShaders(shaders) {
         const promises = Object.entries(shaders).map(async ([name, url]) => {
@@ -49,7 +49,7 @@ export class ShaderLoader {
                 const code = await this.loadShader(url);
                 return [name, code];
             } catch (error) {
-                console.error(`加载 shader "${name}" 失败:`, error);
+                console.error(`Failed to load shader "${name}":`, error);
                 return [name, null];
             }
         });
@@ -59,9 +59,9 @@ export class ShaderLoader {
     }
 
     /**
-     * 加载 vertex 和 fragment shader 对
-     * @param {string} vertexUrl - vertex shader 文件路径
-     * @param {string} fragmentUrl - fragment shader 文件路径
+     * Load vertex and fragment shader pair
+     * @param {string} vertexUrl - Vertex shader file path
+     * @param {string} fragmentUrl - Fragment shader file path
      * @returns {Promise<{vertex: string, fragment: string}>}
      */
     async loadShaderPair(vertexUrl, fragmentUrl) {
@@ -74,16 +74,16 @@ export class ShaderLoader {
     }
 
     /**
-     * 清除缓存
+     * Clear cache
      */
     clearCache() {
         this.cache.clear();
-        console.log('🧹 Shader 缓存已清除');
+        console.log('🧹 Shader cache cleared');
     }
 
     /**
-     * 获取缓存信息
-     * @returns {Object} 缓存统计信息
+     * Get cache info
+     * @returns {Object} Cache statistics
      */
     getCacheInfo() {
         return {
@@ -93,10 +93,10 @@ export class ShaderLoader {
     }
 }
 
-// 创建默认实例
+// Create default instance
 export const shaderLoader = new ShaderLoader();
 
-// 便捷函数
+// Convenience functions
 export const loadShader = (url) => shaderLoader.loadShader(url);
 export const loadShaders = (shaders) => shaderLoader.loadShaders(shaders);
 export const loadShaderPair = (vertexUrl, fragmentUrl) => shaderLoader.loadShaderPair(vertexUrl, fragmentUrl);

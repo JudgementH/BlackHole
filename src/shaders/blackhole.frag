@@ -155,7 +155,7 @@ vec3 traceColor(vec3 pos, vec3 dir) {
   vec3 h = cross(pos, dir);
   float h2 = dot(h, h);
   for (int i = 0; i < N_STEP; i++) {
-    // 引力透镜
+    // Gravitational lensing
     if (gravatationalLensing > 0.5) {
       float r2 = dot(pos, pos);
       float r5 = pow(r2, 2.5);
@@ -163,11 +163,11 @@ vec3 traceColor(vec3 pos, vec3 dir) {
       dir += acc;
     }
 
-    // 黑洞
+    // Black hole
     if (dot(pos, pos) < 1.0) {
       return color;
     }
-    // 吸积盘
+    // Accretion disk
     if (accretionDisk > 0.5) {
       accretionDiskColor(pos, color, alpha);
     }

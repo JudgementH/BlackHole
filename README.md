@@ -1,31 +1,31 @@
-# 黑洞渲染器 (BlackHole Renderer)
+# BlackHole Renderer
 
-一个基于 Three.js 和 WebGL 的黑洞物理渲染器，实现了引力透镜、吸积盘等物理效果。
+A black hole physics renderer based on Three.js and WebGL, implementing gravitational lensing, accretion disk, and other physical effects.
 
-## 演示效果
+## Demo
 
-![黑洞渲染演示](assets/demo.png)
+![Black Hole Rendering Demo](assets/demo.png)
 
-## 项目结构
+## Project Structure
 
 ```
 BlackHole/
-├── index.html              # 主页面
+├── index.html              # Main page
 ├── src/
-│   ├── main.js             # 主程序入口
-│   ├── shaders/            # Shader 文件
-│   │   ├── blackhole.vert  # 黑洞顶点着色器
-│   │   ├── blackhole.frag  # 黑洞片段着色器
-│   │   ├── bloom_brightness.frag  # Bloom 亮度提取
-│   │   ├── bloom_down.frag        # Bloom 下采样
-│   │   ├── bloom_up.frag          # Bloom 上采样
-│   │   ├── bloom_composite.frag   # Bloom 合成
-│   │   └── tonemapping.frag       # 色调映射
+│   ├── main.js             # Main entry point
+│   ├── shaders/            # Shader files
+│   │   ├── blackhole.vert  # Black hole vertex shader
+│   │   ├── blackhole.frag  # Black hole fragment shader
+│   │   ├── bloom_brightness.frag  # Bloom brightness extraction
+│   │   ├── bloom_down.frag        # Bloom downsampling
+│   │   ├── bloom_up.frag          # Bloom upsampling
+│   │   ├── bloom_composite.frag   # Bloom composition
+│   │   └── tonemapping.frag      # Tone mapping
 │   └── utils/
-│       └── shaderLoader.js # Shader 加载工具
-└── assets/                 # 资源文件
-    ├── color_map.png       # 颜色映射贴图
-    └── skybox_nebula_dark/ # 天空盒贴图
+│       └── shaderLoader.js # Shader loader utility
+└── assets/                 # Asset files
+    ├── color_map.png       # Color mapping texture
+    └── skybox_nebula_dark/ # Skybox textures
         ├── back.png
         ├── bottom.png
         ├── front.png
@@ -34,46 +34,51 @@ BlackHole/
         └── top.png
 ```
 
-## 功能特性
+## Features
 
-- **黑洞渲染**: 基于物理的黑洞视觉效果
-- **引力透镜**: 实现光线弯曲效果
-- **吸积盘**: 动态的吸积盘渲染，包含噪声和旋转
-- **Bloom 效果**: 多级泛光后处理
-- **色调映射**: ACES 色调映射算法
-- **实时控制**: GUI 控制面板，可调节各种参数
+- **Black Hole Rendering**: Physically-based black hole visual effects
+- **Gravitational Lensing**: Light bending effects
+- **Accretion Disk**: Dynamic accretion disk rendering with noise and rotation
+- **Bloom Effect**: Multi-level bloom post-processing
+- **Tone Mapping**: ACES tone mapping algorithm
+- **Real-time Controls**: GUI control panel for adjusting various parameters
 
-## 使用方法
+## Usage
 
-1. 直接在浏览器中打开 `index.html`
-2. 使用右侧的 GUI 控制面板调节参数：
-   - **摄像机**: 调节视野缩放
-   - **黑洞**: 调节步长、步数、引力透镜强度
-   - **吸积盘**: 调节各种吸积盘参数
-   - **泛光效果**: 调节 Bloom 强度和迭代次数
+> ⚠️ **Note**: Due to ES modules (`type="module"`), you cannot open `index.html` directly by double-clicking (the `file://` protocol is blocked by browser CORS policy). You must run it through a local HTTP server.
 
-## 技术实现
+1. Start a local server from the project root directory (choose one):
+   - **Python 3**: `python -m http.server 8080`
+   - **Node.js**: `npx serve` or `npx http-server`
+2. Open `http://localhost:8080` (or the address shown in the terminal) in your browser
+3. Use the GUI control panel on the right to adjust parameters:
+   - **Camera**: Adjust field of view and zoom
+   - **Black Hole**: Adjust step size, step count, gravitational lensing strength
+   - **Accretion Disk**: Adjust various accretion disk parameters
+   - **Bloom Effect**: Adjust bloom intensity and iteration count
 
-- **Three.js**: 3D 渲染框架
-- **WebGL**: 底层图形 API
-- **GLSL**: 着色器语言
-- **lil-gui**: GUI 控制面板
-- **Stats.js**: 性能监控
+## Technical Implementation
 
-## 渲染管线
+- **Three.js**: 3D rendering framework
+- **WebGL**: Low-level graphics API
+- **GLSL**: Shader language
+- **lil-gui**: GUI control panel
+- **Stats.js**: Performance monitoring
 
-1. **黑洞渲染**: 使用光线追踪算法渲染黑洞和吸积盘
-2. **亮度提取**: 提取高亮度区域用于泛光效果
-3. **Bloom 处理**: 多级下采样和上采样
-4. **合成**: 将基础图像和泛光效果合成
-5. **色调映射**: HDR 到 LDR 的转换
-6. **输出**: 最终渲染到屏幕
+## Render Pipeline
 
-## 浏览器兼容性
+1. **Black Hole Rendering**: Ray tracing algorithm for black hole and accretion disk
+2. **Brightness Extraction**: Extract bright regions for bloom effect
+3. **Bloom Processing**: Multi-level downsampling and upsampling
+4. **Composition**: Composite base image with bloom effect
+5. **Tone Mapping**: HDR to LDR conversion
+6. **Output**: Final render to screen
+
+## Browser Compatibility
 
 - Chrome 80+
 - Firefox 75+
 - Safari 13+
 - Edge 80+
 
-需要支持 WebGL 2.0 的现代浏览器。
+Requires a modern browser with WebGL 2.0 support.
